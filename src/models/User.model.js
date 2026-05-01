@@ -63,6 +63,18 @@ const userSchema = new mongoose.Schema(
     isDeleted: {
       type: Boolean,
       default: false,
+    },
+    refreshToken: {
+      type: String,
+      default: null,
+    },
+    otp: {
+      type: String,
+      default: null,  
+    },
+    otpExpiry: {
+      type: Date,
+      default: null,
     }
   },
   { timestamps: true }
@@ -73,6 +85,7 @@ userSchema.pre("save", async function () {
 
   this.password = await bcrypt.hash(this.password, 12);
 });
+
 
 const User = mongoose.model("User", userSchema);
 export default User;
