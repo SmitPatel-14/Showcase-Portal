@@ -1,15 +1,8 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { DEPARTMENT_CODES, CLG_CODE ,ROLE_ENUM} from "../constant/enums.contant.js";
 
-export const DEPARTMENT_CODES = {
-  "05": "Chemical Engineering",
-  "06": "Civil Engineering",
-  "07": "Computer Engineering",
-  "09": "Electrical Engineering",
-  "19": "Mechanical Engineering",
-};
 
-const ROLE_ENUM = ["student", "admin"];
 
 const userSchema = new mongoose.Schema(
   {
@@ -42,8 +35,8 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ROLE_ENUM,
-      default: ROLE_ENUM[0],
+      enum: Object.values(ROLE_ENUM),
+      default: ROLE_ENUM.STUDENT,
     },
 
     department: {

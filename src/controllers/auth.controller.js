@@ -1,7 +1,6 @@
 import { BadRequestError, NotFoundError } from "../utils/Apierrors.utils.js";
-import { CLG_CODE } from "../constant/clgportal.constant.js";
+import { CLG_CODE ,DEPARTMENT_CODES,PROJECT_STATUS} from "../constant/enums.contant.js";
 import User from "../models/User.model.js";
-import { DEPARTMENT_CODES } from "../models/User.model.js";
 import nodemailer from "nodemailer";
 import { ApiResponse } from "../utils/Apiresponse.utils.js";
 import transporter from "../config/mailer.config.js";
@@ -85,7 +84,6 @@ const signUp = async (req, res, next) => {
       subject: "Registration Successful – GEC Bharuch Showcase",
       text: `Hi ${newUser.name},\n\nYou have been registered successfully.\nEnrollment: ${newUser.enrollmentNumber}\nPassword: ${password}\nEmail: ${newUser.email}\n\nPlease keep this information safe.\n\nBest regards,\nGEC Bharuch Team`,
     };
-    await newUser.save();
 
     let emailStatus =
       "User registered successfully,check email for credentials.";
@@ -105,7 +103,7 @@ const signUp = async (req, res, next) => {
 const logIn = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-
+    
     if (!email || !password) {
       throw new BadRequestError("Email and password are required");
     }
@@ -143,12 +141,12 @@ const logIn = async (req, res, next) => {
 
     res.cookie("accessToken", accessToken, {
       ...cookieOptions,
-      maxAge: parseInt(process.env.JWT_ACCESS_TOKEN_EXPIRES_IN) * 60 * 1000, // 15 min
+      maxAge:process.env.COOKIE_ACCESS_TOKEN_EXPIRES_IN * 24 * 60 * 60 * 1000 || 15 * 60 * 1000,
     });
 
     res.cookie("refreshToken", refreshToken, {
       ...cookieOptions,
-      maxAge: parseInt(process.env.JWT_REFRESH_EXPIRES_IN) * 24 * 60 * 60 * 1000, // 7 days
+      maxAge:process.env.COOKIE_REFRESH_TOKEN_EXPIRES_IN * 24 * 60 * 60 * 1000 || 7 * 24 * 60 * 60 * 1000,
     });
     user.refreshToken = refreshToken;
     await user.save();
@@ -243,5 +241,6 @@ const logOut = async (req, res, next) => {
     next(error);
   }
 };
+
 
 export { signUp, logIn, forgotPassword, resetPassword, logOut };

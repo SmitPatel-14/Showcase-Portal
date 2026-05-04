@@ -6,6 +6,7 @@ import swaggerSpec from './config/swagger.js';
 import connectDB from './config/database.js';
 import authRoutes from './routes/auth.route.js';
 import errorHandler from './utils/errorhandler.utils.js';
+import projectRoutes from './routes/project.routes.js';
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ connectDB();
 
 //routes
 app.use('/api/v1/auth',authRoutes);
+app.use('/api/v1/projects',projectRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
