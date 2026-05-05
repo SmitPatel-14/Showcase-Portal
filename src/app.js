@@ -7,10 +7,13 @@ import connectDB from './config/database.js';
 import authRoutes from './routes/auth.route.js';
 import errorHandler from './utils/errorhandler.utils.js';
 import projectRoutes from './routes/project.routes.js';
+import cookieParser from "cookie-parser";
+
 
 dotenv.config();
 
 const app = express();
+app.use(cookieParser());
 
 app.use(cors({
     origin: process.env.BASE_URL,

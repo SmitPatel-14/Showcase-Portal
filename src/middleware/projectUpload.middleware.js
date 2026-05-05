@@ -2,6 +2,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
+
 const TMP_DIR = "./tmp/uploads";
 
 // ensure tmp dir exists
@@ -47,4 +48,5 @@ export const projectUpload = upload.fields([
   { name: "ppt", maxCount: 1 },
   { name: "pdf", maxCount: 1 },
   { name: "video", maxCount: 1 },
+  { name: "teamPhoto", maxCount: 1 },
 ]);

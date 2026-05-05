@@ -1,18 +1,7 @@
 import Project from "../models/project.model.js";
 import { BadRequestError } from "../utils/Apierrors.utils.js";
 import { uploadToCloudinary } from "../utils/cloudinary.utils.js";
-import fs from "fs";
-
-
-// helper — cleans up all tmp files if something fails mid-upload
-const cleanupTmpFiles = (files) => {
-  if (!files) return;
-  Object.values(files).forEach((fileArr) =>
-    fileArr.forEach((f) => {
-      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-    })
-  );
-};
+import { cleanupTmpFiles } from "../utils/helpers.js";
 
 export const addProject = async (req, res) => {
   const files = req.files;
@@ -25,42 +14,56 @@ export const addProject = async (req, res) => {
       category,
       academicYear,
       semester,
-      techStack,       // sent as JSON string: '["React","Node"]' or comma separated
+      techStack, 
       githubUrl,
       liveUrl,
-      members,         // sent as JSON string: '["userId1","userId2"]'
-      presentedAt,     // sent as JSON string: '[{"eventName":"SIH","award":"1st"}]'
+      members, 
+      presentedAt, 
     } = req.body;
-    
-    if (!title || !shortDescription || !fullDescription || !academicYear || !semester || !githubUrl) {
-      throw new BadRequestError("Missing required fields: title, shortDescription, fullDescription, academicYear, semester, githubUrl");
+
+    if (
+      !title ||
+      !shortDescription ||
+      !fullDescription ||
+      !academicYear ||
+      !semester ||
+      !githubUrl
+    ) {
+      throw new BadRequestError(
+        "Missing required fields: title, shortDescription, fullDescription, academicYear, semester, githubUrl",
+      );
     }
-    // ── Parse JSON fields ──────────────────────────────────
-    const parsedTechStack = typeof techStack === "string"
-      ? JSON.parse(techStack)
-      : techStack ?? [];
+    const parsedTechStack =
+      typeof techStack === "string" ? JSON.parse(techStack) : (techStack ?? []);
 
     const parsedMembers = members
-      ? typeof members === "string" ? JSON.parse(members) : members
+      ? typeof members === "string"
+        ? JSON.parse(members)
+        : members
       : [];
 
     const parsedPresentedAt = presentedAt
-      ? typeof presentedAt === "string" ? JSON.parse(presentedAt) : presentedAt
+      ? typeof presentedAt === "string"
+        ? JSON.parse(presentedAt)
+        : presentedAt
       : [];
 
-    // ── Upload media to Cloudinary ─────────────────────────
     const media = {};
-    // if (!files?.cover?.[0]) {
-    //   throw new BadRequestError("Cover image is required");
-    // }
-
-    if (files?.cover?.[0]) {
-      media.cover = await uploadToCloudinary(files.cover[0].path, "projects/covers");
+    if (!files?.cover?.[0]) {
+      throw new BadRequestError("Cover image is required");
+    }
+    else{
+      media.cover = await uploadToCloudinary(
+        files.cover[0].path,
+        "projects/covers",
+      );
     }
 
     if (files?.screenshots?.length) {
       media.screenshots = await Promise.all(
-        files.screenshots.map((f) => uploadToCloudinary(f.path, "projects/screenshots"))
+        files.screenshots.map((f) =>
+          uploadToCloudinary(f.path, "projects/screenshots"),
+        ),
       );
     }
 
@@ -73,10 +76,20 @@ export const addProject = async (req, res) => {
     }
 
     if (files?.video?.[0]) {
-      media.video = await uploadToCloudinary(files.video[0].path, "projects/videos");
+      media.video = await uploadToCloudinary(
+        files.video[0].path,
+        "projects/videos",
+      );
     }
 
-    // ── Create project ─────────────────────────────────────
+    if (files?.teamPhoto?.[0]) {
+      media.teamPhoto = await uploadToCloudinary(
+        files.teamPhoto[0].path,
+        "projects/team",
+      );
+    }
+
+    // create project document in DB
     const project = await Project.create({
       title,
       shortDescription,
@@ -87,8 +100,8 @@ export const addProject = async (req, res) => {
       techStack: parsedTechStack,
       githubUrl,
       liveUrl,
-      ...media,                        // spread cover, screenshots, ppt, pdf, video
-      owner: req.user.id,             // from auth middleware
+      ...media, 
+      owner: req.user.id, 
       members: parsedMembers,
       presentedAt: parsedPresentedAt,
     });
@@ -98,12 +111,74 @@ export const addProject = async (req, res) => {
       message: "Project submitted successfully",
       data: project,
     });
-
   } catch (error) {
-    cleanupTmpFiles(files); // delete tmp files if upload/db fails
+    cleanupTmpFiles(files); 
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to create project",
+    });
+  }
+};
+
+
+//review controller for admin/faculty
+export const reviewProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { status, feedback } = req.body;
+
+    // validate input
+    if (![PROJECT_STATUS.APPROVED, PROJECT_STATUS.REJECTED].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Status must be 'approved' or 'rejected'",
+      });
+    }
+
+    if (status === PROJECT_STATUS.REJECTED && !feedback?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Feedback is required when rejecting a project",
+      });
+    }
+
+    const project = await Project.findById(projectId);
+
+    if (!project || project.isDeleted) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    if (project.status !== PROJECT_STATUS.PENDING) {
+      return res.status(400).json({
+        success: false,
+        message: `Project is already ${project.status}`,
+      });
+    }
+
+    project.status = status;
+    project.reviewedBy = req.user._id;
+    project.reviewedAt = new Date();
+    project.feedback = status === PROJECT_STATUS.REJECTED ? feedback.trim() : "";
+
+    await project.save();
+
+    // TODO: trigger notification to project.owner here (build notification module later)
+
+    return res.status(200).json({
+      success: true,
+      message: `Project ${status} successfully`,
+      data: {
+        projectId: project._id,
+        status: project.status,
+        feedback: project.feedback,
+        reviewedAt: project.reviewedAt,
+      },
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to review project",
     });
   }
 };

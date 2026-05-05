@@ -1,5 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+import dotenv from "dotenv";
+dotenv.config();
 
 // configure once — call this in your app entry point
 export const connectCloudinary = () => {
@@ -10,8 +12,10 @@ export const connectCloudinary = () => {
   });
 };
 
+
 // upload a single file from disk, returns { url, publicId }
 export const uploadToCloudinary = async (localFilePath, folder = "projects") => {
+  connectCloudinary();
   const result = await cloudinary.uploader.upload(localFilePath, {
     folder,
     resource_type: "auto", // handles image, video, pdf, ppt
@@ -27,5 +31,6 @@ export const uploadToCloudinary = async (localFilePath, folder = "projects") => 
 
 // delete a file from cloudinary using publicId
 export const deleteFromCloudinary = async (publicId, resourceType = "image") => {
+  connectCloudinary();
   await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
 };

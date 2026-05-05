@@ -30,11 +30,20 @@ const projectSchema = new mongoose.Schema(
       url: { type: String, required: true },
       publicId: { type: String, required: true },
     }, // thumbnail/cover image
-
-    screenshots: [{ url: String, publicId: String }], // demo images (multiple)
+    screenshots: {
+      type: [
+        {
+          url: { type: String, required: true },
+          publicId: { type: String, required: true },
+        },
+      ],
+      required: true,
+      default: [],
+    },
     ppt: { url: String, publicId: String }, // presentation file
     pdf: { url: String, publicId: String }, // report/documentation
     video: { url: String, publicId: String }, // demo video
+    teamPhoto: { url: String, publicId: String },
 
     owner: {
       type: mongoose.Schema.Types.ObjectId,
