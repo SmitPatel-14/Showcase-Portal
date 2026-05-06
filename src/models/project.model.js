@@ -76,7 +76,6 @@ const projectSchema = new mongoose.Schema(
 
     isFeatured: { type: Boolean, default: false },
 
-    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

@@ -20,3 +20,5 @@ export const ROLE_ENUM ={
 }
 
 export const CLG_CODE = "014"
+
+export const SCREENSHOTS_LIMIT = 5;

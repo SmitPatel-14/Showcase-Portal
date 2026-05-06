@@ -1,7 +1,9 @@
 import Project from "../models/project.model.js";
 import { BadRequestError } from "../utils/Apierrors.utils.js";
 import { uploadToCloudinary } from "../utils/cloudinary.utils.js";
-import { cleanupTmpFiles } from "../utils/helpers.js";
+import { cleanupTmpFiles } from "../utils/cleanup.helpers.js";
+import { PROJECT_STATUS,SCREENSHOTS_LIMIT } from "../constant/enums.contant.js";
+import next from "next";
 
 export const addProject = async (req, res) => {
   const files = req.files;
@@ -32,6 +34,12 @@ export const addProject = async (req, res) => {
       throw new BadRequestError(
         "Missing required fields: title, shortDescription, fullDescription, academicYear, semester, githubUrl",
       );
+    }
+    const existingProject = await Project.findOne({
+      title: title.trim(),
+    });
+    if (existingProject) {
+      throw new BadRequestError("Project with this title already exists");
     }
     const parsedTechStack =
       typeof techStack === "string" ? JSON.parse(techStack) : (techStack ?? []);
@@ -105,6 +113,8 @@ export const addProject = async (req, res) => {
       members: parsedMembers,
       presentedAt: parsedPresentedAt,
     });
+
+    //TODO: trigger notification to admins/faculty for review (build notification module later)
 
     return res.status(201).json({
       success: true,
@@ -180,5 +190,85 @@ export const reviewProject = async (req, res) => {
       success: false,
       message: error.message || "Failed to review project",
     });
+  }
+};
+
+export const editProject = async (req, res, next) => {
+  const files = req.files;
+
+  try {
+    const { projectId } = req.params;
+
+    const project = await Project.findById(projectId);
+
+    if (!project || project.isDeleted) throw new NotFoundError("Project not found");
+
+    if (project.owner.toString() !== req.user._id.toString()) {
+      throw new ForbiddenError("Only the project owner can edit this project");
+    }
+    const allowedFields = [
+      "title", "shortDescription", "fullDescription",
+      "category", "academicYear", "semester",
+      "techStack", "githubUrl", "liveUrl",
+      "members", "presentedAt",
+    ];
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) project[field] = req.body[field];
+    });
+
+    const replaceSingleMedia = async (fieldName, file, folder) => {
+      if (!file) return;
+      if (project[fieldName]?.publicId) {
+        await deleteFromCloudinary(
+          project[fieldName].publicId,
+          fieldName === "video" ? "video" : "image"
+        );
+      }
+      project[fieldName] = await uploadToCloudinary(file.path, folder);
+    };
+
+    await replaceSingleMedia("cover",     files?.cover?.[0],     "projects/covers");
+    await replaceSingleMedia("ppt",       files?.ppt?.[0],       "projects/ppts");
+    await replaceSingleMedia("pdf",       files?.pdf?.[0],       "projects/pdfs");
+    await replaceSingleMedia("video",     files?.video?.[0],     "projects/videos");
+    await replaceSingleMedia("teamPhoto", files?.teamPhoto?.[0], "projects/team");
+
+    if (files?.screenshots?.length) {
+      const existing = project.screenshots?.length ?? 0;
+      const incoming = files.screenshots.length;
+
+      if (existing + incoming > SCREENSHOTS_LIMIT) {
+        throw new BadRequestError(
+          `Screenshots limit is ${SCREENSHOTS_LIMIT}. You have ${existing} existing and are adding ${incoming}. Remove some first.`
+        );
+      }
+
+      const uploaded = await Promise.all(
+        files.screenshots.map((f) => uploadToCloudinary(f.path, "projects/screenshots"))
+      );
+
+      project.screenshots = [...(project.screenshots ?? []), ...uploaded];
+    }
+
+    // ── Reset status to pending if was approved or rejected ──
+    if (project.status !== "pending") {
+      project.status = "pending";
+      project.feedback = "";
+      project.reviewedBy = undefined;
+      project.reviewedAt = undefined;
+    }
+
+    await project.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Project updated successfully",
+      data: project,
+    });
+
+  } catch (error) {
+    cleanupTmpFiles(files);
+    next(error);
   }
 };

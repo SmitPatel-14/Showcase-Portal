@@ -1,5 +1,10 @@
 import { BadRequestError, NotFoundError } from "../utils/Apierrors.utils.js";
-import { CLG_CODE ,DEPARTMENT_CODES,PROJECT_STATUS} from "../constant/enums.contant.js";
+import {
+  CLG_CODE,
+  DEPARTMENT_CODES,
+  PROJECT_STATUS,
+  ROLE_ENUM,
+} from "../constant/enums.contant.js";
 import User from "../models/User.model.js";
 import nodemailer from "nodemailer";
 import { ApiResponse } from "../utils/Apiresponse.utils.js";
@@ -103,14 +108,12 @@ const signUp = async (req, res, next) => {
 const logIn = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       throw new BadRequestError("Email and password are required");
     }
 
-    const user = await User.findOne({ email }).select(
-      "+password",
-    );
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
       throw new NotFoundError("User not found");
     }
@@ -141,12 +144,16 @@ const logIn = async (req, res, next) => {
 
     res.cookie("accessToken", accessToken, {
       ...cookieOptions,
-      maxAge:process.env.COOKIE_ACCESS_TOKEN_EXPIRES_IN * 24 * 60 * 60 * 1000 || 15 * 60 * 1000,
+      maxAge:
+        process.env.COOKIE_ACCESS_TOKEN_EXPIRES_IN * 24 * 60 * 60 * 1000 ||
+        15 * 60 * 1000,
     });
 
     res.cookie("refreshToken", refreshToken, {
       ...cookieOptions,
-      maxAge:process.env.COOKIE_REFRESH_TOKEN_EXPIRES_IN * 24 * 60 * 60 * 1000 || 7 * 24 * 60 * 60 * 1000,
+      maxAge:
+        process.env.COOKIE_REFRESH_TOKEN_EXPIRES_IN * 24 * 60 * 60 * 1000 ||
+        7 * 24 * 60 * 60 * 1000,
     });
     user.refreshToken = refreshToken;
     await user.save();
@@ -162,7 +169,7 @@ const logIn = async (req, res, next) => {
 
 const forgotPassword = async (req, res, next) => {
   try {
-    const { email } = req.body; 
+    const { email } = req.body;
     if (!email) {
       throw new BadRequestError("Email is required");
     }
@@ -176,16 +183,17 @@ const forgotPassword = async (req, res, next) => {
     await user.save();
     let emailStatus = "OTP sent to your email";
     try {
-    const mailOptions = {
-      from: process.env.USER_MAIL,
-      to: user.email,
-      subject: "Password Reset OTP – GEC Bharuch Showcase",
-      text: `Hi ${user.name},\n\nYou requested a password reset. Use the OTP below to reset your password. This OTP is valid for 10 minutes.\n\nOTP: ${OTP}\n\nIf you did not request this, please ignore this email.\n\nBest regards,\nGEC Bharuch Team`,
-    };
-    await transporter.sendMail(mailOptions);
+      const mailOptions = {
+        from: process.env.USER_MAIL,
+        to: user.email,
+        subject: "Password Reset OTP – GEC Bharuch Showcase",
+        text: `Hi ${user.name},\n\nYou requested a password reset. Use the OTP below to reset your password. This OTP is valid for 10 minutes.\n\nOTP: ${OTP}\n\nIf you did not request this, please ignore this email.\n\nBest regards,\nGEC Bharuch Team`,
+      };
+      await transporter.sendMail(mailOptions);
     } catch (err) {
       console.error("Email failed:", err.message);
-      emailStatus = "please Retry for Forgot password, there was an issue sending the OTP email.";
+      emailStatus =
+        "please Retry for Forgot password, there was an issue sending the OTP email.";
     }
     ApiResponse.success(res, 200, emailStatus);
   } catch (error) {
@@ -242,5 +250,55 @@ const logOut = async (req, res, next) => {
   }
 };
 
+const adminSignUp = async (req, res, next) => {
+  try {
+    const { name, email, password, department } = req.body;
 
-export { signUp, logIn, forgotPassword, resetPassword, logOut };
+    if (!name || !email || !password || !department) {
+      throw new BadRequestError("All fields are required");
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      throw new BadRequestError("Invalid email format");
+    }
+
+    if (!Object.values(DEPARTMENT_CODES).includes(department)) {
+      throw new BadRequestError("Invalid department");
+    }
+
+    const existing = await User.findOne({ email });
+    if (existing) {
+      throw new BadRequestError("Account already exists with this email");
+    }
+
+    const admin = new User({
+      name,
+      email,
+      password,
+      department,
+      role: ROLE_ENUM.ADMIN,
+    });
+    await admin.save();
+    const mailOptions = {
+      from: process.env.USER_MAIL,
+      to: admin.email,
+      subject: "Registration Successful – GEC Bharuch Showcase",
+      text: `Hi ${admin.name},\n\nYou have been registered successfully as an admin.\nEmail: ${admin.email}\nPassword: ${password}\n\nPlease keep this information safe.\n\nBest regards,\nGEC Bharuch Team`,
+    };
+    let emailStatus =
+      "Admin registered successfully,check email for credentials.";
+    try {
+      await transporter.sendMail(mailOptions);
+    } catch (err) {
+      console.error("Email failed:", err.message);
+      emailStatus =
+        "Admin registered, but email not sent. Please remember your credentials.";
+    }
+    ApiResponse.success(res, 201, emailStatus);
+    ApiResponse.success(res, 201, "Admin account created successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export { signUp, logIn, forgotPassword, resetPassword, logOut, adminSignUp };
