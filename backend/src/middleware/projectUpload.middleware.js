@@ -2,10 +2,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-
 const TMP_DIR = "./tmp/uploads";
-
-// ensure tmp dir exists
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -18,35 +15,26 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   const allowedMimes = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "video/mp4",
-    "video/webm",
+    "image/jpeg", "image/png", "image/webp",
+    "video/mp4", "video/webm",
     "application/pdf",
     "application/vnd.ms-powerpoint",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ];
-
-  if (allowedMimes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error(`File type not allowed: ${file.mimetype}`), false);
-  }
+  allowedMimes.includes(file.mimetype)
+    ? cb(null, true)
+    : cb(new Error(`File type not allowed: ${file.mimetype}`), false);
 };
 
-const upload = multer({
+export const projectUpload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
-});
-
-// single middleware handles all project file fields
-export const projectUpload = upload.fields([
-  { name: "cover", maxCount: 1 },
+  limits: { fileSize: 50 * 1024 * 1024 },
+}).fields([
+  { name: "cover",       maxCount: 1 },
   { name: "screenshots", maxCount: 5 },
-  { name: "ppt", maxCount: 1 },
-  { name: "pdf", maxCount: 1 },
-  { name: "video", maxCount: 1 },
-  { name: "teamPhoto", maxCount: 1 },
+  { name: "ppt",         maxCount: 1 },
+  { name: "pdf",         maxCount: 1 },
+  { name: "video",       maxCount: 1 },
+  { name: "teamPhoto",   maxCount: 1 },
 ]);

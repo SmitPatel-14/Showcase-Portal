@@ -125,7 +125,7 @@ const logIn = async (req, res, next) => {
 
     const payload = {
       id: user._id,
-      role: user.role,
+      role: user.role
     };
 
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET_KEY, {
