@@ -21,6 +21,7 @@ export class BadRequestError extends ApiError {
   }
 }
 
+
 // 401
 export class UnauthorizedError extends ApiError {
   constructor(message = "Unauthorized access", data = null) {

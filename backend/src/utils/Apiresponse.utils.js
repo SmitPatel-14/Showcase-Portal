@@ -9,6 +9,7 @@ export class ApiResponse {
     this.data = data;
     this.success = statusCode < 400;
   }
+  
 
   static success(
     res,

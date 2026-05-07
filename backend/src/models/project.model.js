@@ -61,6 +61,7 @@ const projectSchema = new mongoose.Schema(
       },
     ],
 
+    
     status: {
       type: String,
       enum: Object.values(PROJECT_STATUS),

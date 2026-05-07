@@ -1,6 +1,5 @@
 import fs from "fs";
 
-// helper — cleans up all tmp files if something fails mid-upload
 
 export const cleanupTmpFiles = (files) => {
   if (!files) return;
