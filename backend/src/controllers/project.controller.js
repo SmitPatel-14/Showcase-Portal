@@ -1,5 +1,4 @@
 import Project from "../models/project.model.js";
-import { BadRequestError } from "../utils/Apierrors.utils.js";
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -12,12 +11,18 @@ import {
 } from "../constant/enums.contant.js";
 import next from "next";
 import { DEPARTMENT_CODES, ROLE_ENUM } from "../constant/enums.contant.js";
+import Category from "../models/categories.model.js";
+import User from "../models/User.model.js";
+import { ApiResponse } from "../utils/Apiresponse.utils.js";
+import { ForbiddenError, NotFoundError, ConflictError,BadRequestError } from "../utils/Apierrors.utils.js"; 
 
 export const addProject = async (req, res, next) => {
-  const files = req.files;
-  const newlyUploaded = [];
-
   try {
+    const files = req.files;
+    const newlyUploaded = [];
+    const userId = req.user.id;
+    const user = await User.findById(userId).lean();
+    const userDept = user.department;
     const {
       title,
       shortDescription,
@@ -38,7 +43,8 @@ export const addProject = async (req, res, next) => {
       !fullDescription ||
       !academicYear ||
       !semester ||
-      !githubUrl
+      !githubUrl ||
+      !category
     ) {
       throw new BadRequestError(
         "Missing required fields: title, shortDescription, fullDescription, academicYear, semester, githubUrl",
@@ -63,8 +69,8 @@ export const addProject = async (req, res, next) => {
 
     const cat = await Category.findById(category);
     if (!cat) throw new NotFoundError("Category not found");
-
-    if (cat.department !== req.user.department) {
+    console.log("User Dept:", userDept, "Category Dept:", cat.department);
+    if (cat.department !== userDept) {
       throw new BadRequestError("Category does not belong to your department");
     }
 
@@ -354,13 +360,14 @@ export const reviewProject = async (req, res) => {
   }
 };
 
+
 export const getProjects = async (req, res, next) => {
   try {
     const { role, id: userId } = req.user;
 
-    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(50, parseInt(req.query.limit) || 8);
-    const skip  = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
     const { search, category } = req.query;
 
@@ -370,11 +377,15 @@ export const getProjects = async (req, res, next) => {
       const admin = await User.findById(userId, "department").lean();
       if (!admin) throw new NotFoundError("Admin not found");
 
-      filter.status = { $in: [PROJECT_STATUS.PENDING, PROJECT_STATUS.REJECTED] };
+      filter.status = {
+        $in: [PROJECT_STATUS.PENDING, PROJECT_STATUS.REJECTED],
+      };
 
-      const deptUsers = await User.find({ department: admin.department, isDeleted: false }, "_id").lean();
+      const deptUsers = await User.find(
+        { department: admin.department, isDeleted: false },
+        "_id",
+      ).lean();
       filter.owner = { $in: deptUsers.map((u) => u._id) };
-
     } else if (role === ROLE_ENUM.STUDENT) {
       filter.$or = [{ owner: userId }, { members: userId }];
     }
@@ -388,7 +399,7 @@ export const getProjects = async (req, res, next) => {
     if (search?.trim()) {
       const matchedCategories = await Category.find(
         { category: { $regex: search.trim(), $options: "i" } },
-        "_id"
+        "_id",
       ).lean();
       const categoryIds = matchedCategories.map((c) => c._id);
 
@@ -396,7 +407,7 @@ export const getProjects = async (req, res, next) => {
         ...(filter.$and ?? []),
         {
           $or: [
-            { title:     { $regex: search.trim(), $options: "i" } },
+            { title: { $regex: search.trim(), $options: "i" } },
             { techStack: { $regex: search.trim(), $options: "i" } },
             ...(categoryIds.length ? [{ category: { $in: categoryIds } }] : []),
           ],
@@ -406,9 +417,11 @@ export const getProjects = async (req, res, next) => {
 
     const [projects, total] = await Promise.all([
       Project.find(filter)
-        .select("_id title shortDescription category cover owner members status createdAt")
-        .populate("owner",    "name enrollmentNumber")
-        .populate("members",  "name enrollmentNumber")
+        .select(
+          "_id title shortDescription category cover owner members status createdAt",
+        )
+        .populate("owner", "name enrollmentNumber")
+        .populate("members", "name enrollmentNumber")
         .populate("category", "category")
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -419,11 +432,25 @@ export const getProjects = async (req, res, next) => {
 
     const cards = projects.map(({ cover, owner, members, ...rest }) => ({
       ...rest,
-      cover    : cover?.url ?? null,
-      category : rest.category?.category ?? null,
+      cover: cover?.url ?? null,
+      category: rest.category?.category ?? null,
       contributors: [
-        ...(owner ? [{ _id: owner._id, name: owner.name, enrollmentNumber: owner.enrollmentNumber, role: "owner" }] : []),
-        ...(members ?? []).map((m) => ({ _id: m._id, name: m.name, enrollmentNumber: m.enrollmentNumber, role: "member" })),
+        ...(owner
+          ? [
+              {
+                _id: owner._id,
+                name: owner.name,
+                enrollmentNumber: owner.enrollmentNumber,
+                role: "owner",
+              },
+            ]
+          : []),
+        ...(members ?? []).map((m) => ({
+          _id: m._id,
+          name: m.name,
+          enrollmentNumber: m.enrollmentNumber,
+          role: "member",
+        })),
       ],
     }));
 
@@ -433,9 +460,46 @@ export const getProjects = async (req, res, next) => {
         total,
         page,
         limit,
-        totalPages  : Math.ceil(total / limit),
-        hasNextPage : page * limit < total,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getProjectById = async (req, res, next) => {
+  try {
+    const { id: userId, role } = req.user;
+    const { projectId } = req.params;
+
+    const project = await Project.findById(projectId)
+      .populate("owner",      "name enrollmentNumber department")
+      .populate("members",    "name enrollmentNumber department")
+      .populate("reviewedBy", "name")
+      .lean();
+
+    if (!project) throw new NotFoundError("Project not found");
+
+    if (role === ROLE_ENUM.STUDENT) {
+      const isOwner  = project.owner._id.toString() === userId.toString();
+      const isMember = project.members.some((m) => m._id.toString() === userId.toString());
+      if (!isOwner && !isMember) throw new ForbiddenError("Access denied");
+
+    } else if (role === ROLE_ENUM.ADMIN) {
+      // admin can only view their department's projects
+      const user = await User.findById(userId, "department").lean();
+      const ownerDept = project.owner?.department;
+      if (ownerDept !== user.department) throw new ForbiddenError("Access denied");
+
+    } else {
+      throw new ForbiddenError("Access denied");
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: project,
     });
 
   } catch (error) {

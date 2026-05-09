@@ -1,8 +1,10 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import { DEPARTMENT_CODES, CLG_CODE ,ROLE_ENUM} from "../constant/enums.contant.js";
-
-
+import {
+  DEPARTMENT_CODES,
+  CLG_CODE,
+  ROLE_ENUM,
+} from "../constant/enums.contant.js";
 
 const userSchema = new mongoose.Schema(
   {
@@ -48,29 +50,29 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    
+
     isActive: {
       type: Boolean,
       default: true,
-    },
-    isDeleted: {
-      type: Boolean,
-      default: false,
     },
     refreshToken: {
       type: String,
       default: null,
     },
+    refreshTokenExpiry: {
+      type: Date,
+      default: null,
+    },
     otp: {
       type: String,
-      default: null,  
+      default: null,
     },
     otpExpiry: {
       type: Date,
       default: null,
-    }
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 userSchema.pre("save", async function () {
@@ -79,7 +81,5 @@ userSchema.pre("save", async function () {
   this.password = await bcrypt.hash(this.password, 12);
 });
 
-
-
-const User = mongoose.model("User", userSchema);
+const User = mongoose.models.User || mongoose.model("User", userSchema);
 export default User;

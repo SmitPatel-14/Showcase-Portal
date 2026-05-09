@@ -9,6 +9,7 @@ import errorHandler from './utils/errorhandler.utils.js';
 import projectRoutes from './routes/project.routes.js';
 import cookieParser from "cookie-parser";
 import CategoryRoutes  from './routes/categories.routes.js';
+import ProfileRoutes from './routes/profile.routes.js';
 
 
 dotenv.config();
@@ -35,6 +36,7 @@ connectDB();
 app.use('/api/v1/auth',authRoutes);
 app.use('/api/v1/projects',projectRoutes);
 app.use('/api/v1/categories', CategoryRoutes);
+app.use('/api/v1/profile', ProfileRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

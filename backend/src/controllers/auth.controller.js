@@ -125,7 +125,7 @@ const logIn = async (req, res, next) => {
 
     const payload = {
       id: user._id,
-      role: user.role
+      role: user.role,
     };
 
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET_KEY, {
@@ -156,6 +156,7 @@ const logIn = async (req, res, next) => {
         7 * 24 * 60 * 60 * 1000,
     });
     user.refreshToken = refreshToken;
+    user.refreshTokenExpiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
     await user.save();
 
     ApiResponse.success(res, 200, "Login successful", {
@@ -301,4 +302,69 @@ const adminSignUp = async (req, res, next) => {
   }
 };
 
-export { signUp, logIn, forgotPassword, resetPassword, logOut, adminSignUp };
+const refreshAccessToken = async (req, res, next) => {
+  try {
+    const token = req.cookies?.refreshToken;
+    if (!token) throw new UnauthorizedError("No refresh token provided");
+
+    // verify signature first
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET_KEY);
+    } catch {
+      throw new UnauthorizedError("Invalid or expired refresh token");
+    }
+
+    // find user with refresh token and expiry
+    const user = await User.findById(decoded.id).select("+refreshToken +refreshTokenExpiry");
+    if (!user || user.refreshToken !== token) {
+      throw new UnauthorizedError("Refresh token reuse detected. Please login again.");
+    }
+
+    // check absolute expiry
+    if (user.refreshTokenExpiry < new Date()) {
+      await User.findByIdAndUpdate(user._id, {
+        refreshToken: null,
+        refreshTokenExpiry: null,
+      });
+      throw new UnauthorizedError("Session expired. Please login again.");
+    }
+
+    const payload = { id: user._id, role: user.role };
+
+    const newAccessToken = jwt.sign(payload, process.env.JWT_SECRET_KEY, {
+      expiresIn: PROJECT_STATUS.ACCESS_TOKEN_EXPIRES_IN || "15m",
+    });
+
+    // keep same absolute expiry, just rotate the token string
+    const newRefreshToken = jwt.sign(
+      { ...payload, exp: Math.floor(user.refreshTokenExpiry.getTime() / 1000) },
+      process.env.JWT_REFRESH_SECRET_KEY
+    );
+
+    // save new refresh token, expiry stays unchanged
+    await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: false,
+      sameSite: "strict",
+    };
+
+    res.cookie("accessToken", newAccessToken, {
+      ...cookieOptions,
+      maxAge: process.env.COOKIE_ACCESS_TOKEN_EXPIRES_IN * 24 * 60 * 60 * 1000 || 15 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
+      ...cookieOptions,
+      maxAge: user.refreshTokenExpiry - new Date(), // remaining time only
+    });
+
+    ApiResponse.success(res, 200, "Token refreshed successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export { signUp, logIn, forgotPassword, resetPassword, logOut, adminSignUp ,refreshAccessToken};
