@@ -23,3 +23,9 @@ export const CLG_CODE = "014"
 
 
 export const SCREENSHOTS_LIMIT = 5;
+
+export const ACHIEVEMENT_TYPE = {
+  CERTIFICATE: "Certificate",
+  HACKATHON: "Hackathon",
+  COMPETITION: "Competition",
+};

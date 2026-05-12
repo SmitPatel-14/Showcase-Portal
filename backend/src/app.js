@@ -10,6 +10,7 @@ import projectRoutes from './routes/project.routes.js';
 import cookieParser from "cookie-parser";
 import CategoryRoutes  from './routes/categories.routes.js';
 import ProfileRoutes from './routes/profile.routes.js';
+import achievementRoutes from './routes/achivement.routes.js'; 
 
 
 dotenv.config();
@@ -37,6 +38,7 @@ app.use('/api/v1/auth',authRoutes);
 app.use('/api/v1/projects',projectRoutes);
 app.use('/api/v1/categories', CategoryRoutes);
 app.use('/api/v1/profile', ProfileRoutes);
+app.use('/api/v1/achievements', achievementRoutes); 
 
 // Error handling middleware
 app.use(errorHandler);

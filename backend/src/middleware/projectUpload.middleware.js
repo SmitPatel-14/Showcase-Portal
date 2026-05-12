@@ -26,11 +26,14 @@ const fileFilter = (req, file, cb) => {
     : cb(new Error(`File type not allowed: ${file.mimetype}`), false);
 };
 
-export const projectUpload = multer({
+const multerInstance = multer({
   storage,
   fileFilter,
   limits: { fileSize: 50 * 1024 * 1024 },
-}).fields([
+});
+
+// Project: multi-field upload
+export const projectUpload = multerInstance.fields([
   { name: "cover",       maxCount: 1 },
   { name: "screenshots", maxCount: 5 },
   { name: "ppt",         maxCount: 1 },
@@ -38,3 +41,6 @@ export const projectUpload = multer({
   { name: "video",       maxCount: 1 },
   { name: "teamPhoto",   maxCount: 1 },
 ]);
+
+// Achievement: single proof file (image or pdf)
+export const achievementUpload = multerInstance.single("proof");
